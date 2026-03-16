@@ -1,0 +1,70 @@
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+#include <AccelStepper.h>
+
+// --- CONFIGURACIÓN DE WI-FI ---
+const char* ssid = "WIFI";       
+const char* password = "contraseña"; 
+
+// --- CONFIGURACIÓN RED UDP ---
+WiFiUDP Udp;
+unsigned int localUdpPort = 4210; 
+char packetBuffer[255];           
+
+// --- CONFIGURACIÓN DEL MOTOR 28BYJ-48 ---
+#define IN1 5  // D1
+#define IN2 4  // D2
+#define IN3 0  // D3
+#define IN4 2  // D4
+
+AccelStepper motor(AccelStepper::HALF4WIRE, IN4, IN2, IN3, IN1);
+
+void setup() {
+  Serial.begin(115200);
+
+  // Subimos un poco la velocidad máxima
+  motor.setMaxSpeed(1000.0);      
+
+  Serial.println();
+  Serial.print("Conectando a ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\n¡Wi-Fi conectado!");
+  Serial.print("IP DEL ESP8266: ");
+  Serial.println(WiFi.localIP()); 
+
+  Udp.begin(localUdpPort);
+}
+
+void loop() {
+  int packetSize = Udp.parsePacket();
+  
+  if (packetSize) {
+    int len = Udp.read(packetBuffer, 255);
+    if (len > 0) {
+      packetBuffer[len] = 0;
+    }
+    
+    char comando = packetBuffer[0];
+
+    // setSpeed no mueve el motor, solo define a qué velocidad DEBERÍA moverse
+    if (comando == 'I') {
+      motor.setSpeed(-600.0); // Velocidad negativa (gira a un lado)
+    } 
+    else if (comando == 'D') {
+      motor.setSpeed(600.0);  // Velocidad positiva (gira al otro)
+    }
+    else if (comando == 'C') {
+      motor.setSpeed(0.0);    // Velocidad cero (se detiene)
+    }
+  }
+
+  // runSpeed() hace que el motor gire constantemente a la velocidad definida arriba
+  motor.runSpeed(); 
+}
